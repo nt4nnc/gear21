@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instant Offline Hub</title>
+    <title>True Public Community Hub</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #f3f4f6; }
@@ -17,12 +17,12 @@
 
 <div class="container my-4">
     <h1 class="text-center mb-4">gear21</h1>
-    <div class="alert alert-success text-center">saves in browser cache! [allegedly]</div>
+    <div class="alert alert-success text-center">v2</div>
 
     <div class="row g-4">
         <div class="col-md-6">
             <div class="card mb-4 shadow-sm">
-                <div class="card-header bg-primary text-white fw-bold">le chat</div>
+                <div class="card-header bg-primary text-white fw-bold">💬 Public Live Chat</div>
                 <div class="card-body">
                     <div class="chat-box mb-3" id="chat-box"></div>
                     <div class="input-group">
@@ -33,12 +33,12 @@
             </div>
 
             <div class="card shadow-sm">
-                <div class="card-header bg-dark text-white fw-bold">📝 open</div>
+                <div class="card-header bg-dark text-white fw-bold">📝 Shared Forum</div>
                 <div class="card-body">
                     <div class="mb-3 p-3 bg-light border rounded">
                         <input type="text" id="post-title" class="form-control mb-2" placeholder="Topic Title">
                         <textarea id="post-content" class="form-control mb-2" rows="2" placeholder="Write something..."></textarea>
-                        <button class="btn btn-dark btn-sm w-100" id="post-submit">post</button>
+                        <button class="btn btn-dark btn-sm w-100" id="post-submit">Post to Forum</button>
                     </div>
                     <div class="forum-box" id="forum-feed"></div>
                 </div>
@@ -48,8 +48,8 @@
         <div class="col-md-6">
             <div class="card shadow-sm">
                 <div class="card-header bg-danger text-white fw-bold d-flex justify-content-between align-items-center">
-                    <span>draw shi yeahh</span>
-                    <button class="btn btn-sm btn-light" id="clear-canvas">Clear</button>
+                    <span>🎨 Global Drawing Board</span>
+                    <button class="btn btn-sm btn-light" id="clear-canvas">Clear Canvas</button>
                 </div>
                 <div class="card-body text-center">
                     <canvas id="canvas"></canvas>
@@ -59,33 +59,34 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+
 <script>
-    const username = "You_User";
+    // Initialize GunDB using public volunteer servers to pass data between browsers
+    const gun = Gun(['https://gun-manhattan.herokuapp.com/gun']);
+    
+    const appState = gun.get('github_public_forum_hub_2026');
+    const username = "User_" + Math.floor(Math.random() * 9000 + 1000);
 
     // --- CHAT SYSTEM ---
     const chatBox = document.getElementById("chat-box");
     const chatInput = document.getElementById("chat-input");
     const chatSend = document.getElementById("chat-send");
-    
-    let chats = JSON.parse(localStorage.getItem("local_chats")) || [];
-
-    function renderChats() {
-        chatBox.innerHTML = "";
-        chats.forEach(msg => {
-            const div = document.createElement("div");
-            div.innerHTML = `<strong>${msg.user}:</strong> ${msg.text}`;
-            chatBox.appendChild(div);
-        });
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
 
     chatSend.onclick = () => {
         if (!chatInput.value.trim()) return;
-        chats.push({ user: username, text: chatInput.value });
-        localStorage.setItem("local_chats", JSON.stringify(chats));
+        appState.get('chats').set({ user: username, text: chatInput.value, time: Date.now() });
         chatInput.value = "";
-        renderChats();
     };
+
+    // Listen for everyone's chats live
+    appState.get('chats').map().on((data) => {
+        if (!data) return;
+        const div = document.createElement("div");
+        div.innerHTML = `<strong>${data.user}:</strong> ${data.text}`;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    });
 
     // --- FORUM SYSTEM ---
     const postTitle = document.getElementById("post-title");
@@ -93,114 +94,118 @@
     const postSubmit = document.getElementById("post-submit");
     const forumFeed = document.getElementById("forum-feed");
 
-    let posts = JSON.parse(localStorage.getItem("local_posts")) || [];
-
-    function renderForum() {
-        forumFeed.innerHTML = "";
-        posts.forEach((post, index) => {
-            const card = document.createElement("div");
-            card.className = "post-card shadow-sm";
-            card.innerHTML = `
-                <h5 class="text-primary mb-1">${post.title}</h5>
-                <small class="text-muted">By ${post.author}</small>
-                <p class="my-2">${post.content}</p>
-                <button class="btn btn-outline-danger btn-sm" onclick="likePost(${index})">❤️ Like (${post.likes})</button>
-            `;
-            forumFeed.appendChild(card);
-        });
-    }
-
     postSubmit.onclick = () => {
         if (!postTitle.value.trim() || !postContent.value.trim()) return;
-        posts.unshift({
+        const id = Math.random().toString(36).substring(2);
+        appState.get('posts').get(id).put({
+            id: id,
             title: postTitle.value,
             content: postContent.value,
             author: username,
             likes: 0
         });
-        localStorage.setItem("local_posts", JSON.stringify(posts));
         postTitle.value = "";
         postContent.value = "";
-        renderForum();
     };
 
-    window.likePost = (index) => {
-        posts[index].likes++;
-        localStorage.setItem("local_posts", JSON.stringify(posts));
-        renderForum();
+    // Listen for forum updates
+    appState.get('posts').map().on((post) => {
+        if (!post) return;
+        let card = document.getElementById(`card-${post.id}`);
+        if (!card) {
+            card = document.createElement("div");
+            card.id = `card-${post.id}`;
+            card.className = "post-card shadow-sm";
+            forumFeed.prepend(card);
+        }
+        card.innerHTML = `
+            <h5 class="text-primary mb-1">${post.title}</h5>
+            <small class="text-muted">By ${post.author}</small>
+            <p class="my-2">${post.content}</p>
+            <button class="btn btn-outline-danger btn-sm" onclick="likePost('${post.id}', ${post.likes})">❤️ Like (${post.likes})</button>
+        `;
+    });
+
+    window.likePost = (id, currentLikes) => {
+        appState.get('posts').get(id).proto.likes = currentLikes + 1;
+        appState.get('posts').get(id).put({ likes: currentLikes + 1 });
     };
 
-    // --- CANVAS DRAWING BOARD ---
+    // --- CANVAS SYSTEM ---
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
-    
-    // Fix positioning resolution
     canvas.width = canvas.offsetWidth || 500;
     canvas.height = canvas.offsetHeight || 350;
 
     let drawing = false;
 
-    // Load canvas picture from local memory if it exists
-    const savedCanvas = localStorage.getItem("local_canvas_img");
-    if (savedCanvas) {
-        const img = new Image();
-        img.onload = () => ctx.drawImage(img, 0, 0);
-        img.src = savedCanvas;
-    }
+    // Listen for drawings from other users
+    appState.get('canvas_lines').map().on((data) => {
+        if (!data) return;
+        if (data.clear) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            return;
+        }
+        ctx.lineWidth = 4;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#dc3545";
+        ctx.beginPath();
+        ctx.moveTo(data.x1, data.y1);
+        ctx.lineTo(data.x2, data.y2);
+        ctx.stroke();
+    });
+
+    let lastX = 0, lastY = 0;
 
     function getMousePos(e) {
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return {
-            x: clientX - rect.left,
-            y: clientY - rect.top
-        };
+        return { x: clientX - rect.left, y: clientY - rect.top };
     }
 
-    function startDrawing(e) {
+    canvas.addEventListener("mousedown", (e) => {
         drawing = true;
         const pos = getMousePos(e);
-        ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y);
-    }
+        lastX = pos.x; lastY = pos.y;
+    });
 
-    function draw(e) {
+    canvas.addEventListener("mousemove", (e) => {
         if (!drawing) return;
         e.preventDefault();
         const pos = getMousePos(e);
-        ctx.lineWidth = 4;
-        ctx.lineCap = "round";
-        ctx.strokeStyle = "#dc3545";
-        ctx.lineTo(pos.x, pos.y);
-        ctx.stroke();
-    }
+        
+        // Push the drawn lines to the shared public network
+        appState.get('canvas_lines').set({
+            x1: lastX, y1: lastY,
+            x2: pos.x, y2: pos.y
+        });
+        
+        lastX = pos.x; lastY = pos.y;
+    });
 
-    function stopDrawing() {
+    canvas.addEventListener("mouseup", () => drawing = false);
+    canvas.addEventListener("mouseleave", () => drawing = false);
+
+    // Touch support for mobiles
+    canvas.addEventListener("touchstart", (e) => {
+        drawing = true;
+        const pos = getMousePos(e);
+        lastX = pos.x; lastY = pos.y;
+    });
+    canvas.addEventListener("touchmove", (e) => {
         if (!drawing) return;
-        drawing = false;
-        ctx.beginPath();
-        // Save sketch work to local cache strings
-        localStorage.setItem("local_canvas_img", canvas.toDataURL());
-    }
-
-    canvas.addEventListener("mousedown", startDrawing);
-    canvas.addEventListener("mousemove", draw);
-    canvas.addEventListener("mouseup", stopDrawing);
-    canvas.addEventListener("mouseleave", stopDrawing);
-
-    canvas.addEventListener("touchstart", startDrawing);
-    canvas.addEventListener("touchmove", draw);
-    canvas.addEventListener("touchend", stopDrawing);
+        e.preventDefault();
+        const pos = getMousePos(e);
+        appState.get('canvas_lines').set({ x1: lastX, y1: lastY, x2: pos.x, y2: pos.y });
+        lastX = pos.x; lastY = pos.y;
+    });
+    canvas.addEventListener("touchend", () => drawing = false);
 
     document.getElementById("clear-canvas").onclick = () => {
+        appState.get('canvas_lines').set({ clear: true, time: Date.now() });
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        localStorage.removeItem("local_canvas_img");
     };
-
-    // Launch existing saves on browser screen startup
-    renderChats();
-    renderForum();
 </script>
 
 </body>
